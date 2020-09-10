@@ -71,5 +71,51 @@ stages:
          
          Vsix-PublishToGallery "$(build.artifactstagingdirectory)\ResXManager.Vsix.vsix"
       continueOnError: true
-      condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+      condition: false # and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
 
+- stage: CodeSign
+  condition: and(succeeded('Build'), ne(variables['build.reason'], 'PullRequest'))
+  jobs:
+  - deployment: CodeSign
+    displayName: Code Signing
+    pool:
+      vmImage: windows-latest    
+    environment: Code Sign - Approvals
+    variables:
+    # - group: Sign Client Credentials
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          # If you have MSCA: https://aka.ms/mscadocs
+          - task: ms-codeanalysis.vss-microsoft-security-code-analysis-devops.build-task-antimalware.AntiMalware@3
+            displayName: AntiMalware Scan
+            inputs:
+              EnableServices: true
+              FileDirPath: $(Pipeline.Workspace)\Deploy
+
+          - task: DotNetCoreCLI@2
+            inputs:
+              command: custom
+              custom: tool
+              arguments: install --tool-path . SignClient
+            displayName: Install SignTool tool
+            condition: false
+
+          - pwsh: |
+              .\SignClient "Sign" `
+              --baseDirectory "$(Pipeline.Workspace)\BuildPackages" `
+              --input "**/*.nupkg" `
+              --config "$(Pipeline.Workspace)\config\SignClient.json" `
+              --filelist "$(Pipeline.Workspace)\config\filelist.txt" `
+              --user "$(SignClientUser)" `
+              --secret "$(SignClientSecret)" `
+              --name "CodeSignDemo" `
+              --description "CodeSignDemo" `
+              --descriptionUrl "https://github.com/novotnyllc/CodeSignDemo"
+            displayName: Sign packages
+            condition: false
+              
+          - publish: $(Pipeline.Workspace)\Deploy
+            displayName: Publish Signed Packages
+            artifact: SignedPackages
