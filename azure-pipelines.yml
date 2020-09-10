@@ -79,9 +79,9 @@ stages:
   - deployment: CodeSign
     displayName: Code Signing
     pool:
-      vmImage: windows-latest    
+      vmImage: windows-latest
     environment: Code Sign - Approvals
-    variables:
+    # variables:
     # - group: Sign Client Credentials
     strategy:
       runOnce:
